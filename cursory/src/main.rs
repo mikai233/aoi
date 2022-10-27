@@ -1,4 +1,3 @@
-use actix::dev::{MessageResponse, OneshotSender};
 use actix::prelude::*;
 use log::{error, info};
 use tokio::net::TcpListener;
@@ -6,53 +5,32 @@ use tokio::net::TcpListener;
 use crate::server::new_client;
 use crate::world::WorldActor;
 
-mod server;
-mod player;
 mod message;
-mod world;
+mod player;
 mod player_handler;
+mod player_proto_handler;
+mod server;
+mod world;
 mod world_handler;
-
-#[derive(Message)]
-#[rtype(result = "Responses")]
-enum Messages {
-    Ping,
-    Pong,
-}
-
-enum Responses {
-    GotPing,
-    GotPong,
-}
-
-impl<A, M> MessageResponse<A, M> for Responses
-    where
-        A: Actor,
-        M: Message<Result=Responses>,
-{
-    fn handle(self, ctx: &mut A::Context, tx: Option<OneshotSender<M::Result>>) {
-        if let Some(tx) = tx {
-            tx.send(self);
-        }
-    }
-}
+mod world_proto_handler;
 
 #[actix_rt::main]
 async fn main() -> anyhow::Result<()> {
     std::env::set_var("RUST_LOG", "INFO");
     env_logger::init();
-    let addr = ":8899";
+    let addr = "127.0.0.1:4895";
     let listener = TcpListener::bind(addr).await?;
-    info!("server listening on: {}",addr);
-    
+    info!("server listening on: {}", addr);
+    let world_actor = WorldActor::new();
+    let world_pid = world_actor.start();
     loop {
         tokio::select! {
             c = listener.accept() => {
                 match c {
                     Ok((stream, socket_addr)) => {
-                        match new_client(stream).await {
+                        match new_client(stream, world_pid.clone()).await {
                             Ok(_) => {
-                                info!("client:{} disconnected",socket_addr);
+                                info!("client:{} connected",socket_addr);
                             }
                             Err(err) => {
                                 error!("{} disconnected with err: {}",socket_addr,err);

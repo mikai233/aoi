@@ -1,8 +1,70 @@
-use lazy_static::lazy_static;
+use std::collections::HashMap;
 
-type PlayerProtoHandler = fn()
+use actix::Context;
+use lazy_static::lazy_static;
+use protobuf::{MessageDyn, MessageFull};
+
+use protocol::mapper::cast;
+use protocol::test::{LoginReq, LoginResp, MoveStartReq, MoveStopReq};
+
+use crate::message::WorldProtoMessage;
+use crate::player::PlayerActor;
+
+type PlayerProtoHandler =
+    fn(&mut PlayerActor, &mut Context<PlayerActor>, msg: Box<dyn MessageDyn>) -> anyhow::Result<()>;
+
 lazy_static! {
-    pub static ref PROTO_HANDLERS  = {
-        
-    }
+    pub static ref PLAYER_PROTO_HANDLERS: HashMap<String, PlayerProtoHandler> =
+        { register_handlers() };
+}
+
+fn register_handlers() -> HashMap<String, PlayerProtoHandler> {
+    let mut m = HashMap::new();
+    m.insert(
+        LoginReq::descriptor().name().to_string(),
+        handle_login_req as PlayerProtoHandler,
+    );
+    m.insert(
+        MoveStartReq::descriptor().name().to_string(),
+        handle_move_start_req as PlayerProtoHandler,
+    );
+    m.insert(
+        MoveStopReq::descriptor().name().to_string(),
+        handle_move_stop_req as PlayerProtoHandler,
+    );
+    m
+}
+
+fn handle_login_req(
+    player: &mut PlayerActor,
+    ctx: &mut Context<PlayerActor>,
+    msg: Box<dyn MessageDyn>,
+) -> anyhow::Result<()> {
+    let msg = cast::<LoginReq>(msg)?;
+    player.player_id = msg.player_id;
+    player.send(ctx, Box::new(LoginResp::new()));
+    Ok(())
+}
+
+fn handle_move_start_req(
+    player: &mut PlayerActor,
+    ctx: &mut Context<PlayerActor>,
+    msg: Box<dyn MessageDyn>,
+) -> anyhow::Result<()> {
+    let msg = cast::<MoveStartReq>(msg)?;
+    let world_msg = WorldProtoMessage(player.player_id, msg);
+
+    player.world_pid.do_send(world_msg);
+    Ok(())
+}
+
+fn handle_move_stop_req(
+    player: &mut PlayerActor,
+    ctx: &mut Context<PlayerActor>,
+    msg: Box<dyn MessageDyn>,
+) -> anyhow::Result<()> {
+    let msg = cast::<MoveStopReq>(msg)?;
+    let world_msg = WorldProtoMessage(player.player_id, msg);
+    player.world_pid.do_send(world_msg);
+    Ok(())
 }

@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package com.mikai233.aoi;
+
+import "test.proto";
+
+message SC_MSG{
+  TestResp test_resp = 1;
+  LoginResp login_resp = 2;
+  SCMoveStart move_start_resp = 3;
+  SCMoveStop move_stop_resp = 4;
+}

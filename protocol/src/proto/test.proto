@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package com.mikai233.aoi;
+
+message TestReq{
+  int32 id = 1;
+}
+
+message TestResp{
+  string name = 1;
+}
+
+message LoginReq{
+  int32 player_id = 1;
+}
+
+message LoginResp{
+
+}
+
+message Vector2{
+  int32 x = 1;
+  int32 y = 2;
+}
+
+enum MoveCmd{
+  MoveLeft = 0;
+  MoveRight = 1;
+  MoveUp = 2;
+  MoveDown = 3;
+  MoveLeftUp = 4;
+  MoveLeftDown = 5;
+  MoveRightUp = 6;
+  MoveRightDown = 7;
+  Jump = 8;
+}
+
+message MoveStartReq{
+  MoveCmd cmd = 1;
+  int32 velocity = 2;
+}
+
+message SCMoveStart{
+  MoveCmd cmd = 1;
+  int32 velocity = 2;
+  int32 player_id = 3;
+}
+
+message MoveStopReq{
+  Vector2 location = 1;
+}
+
+message SCMoveStop{
+  int32 player_id = 1;
+  Vector2 location = 2;
+}
+

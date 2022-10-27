@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package com.mikai233.aoi;
+
+import "test.proto";
+
+message CS_MSG{
+  TestReq test_req = 1;
+  LoginReq login_req = 2;
+  MoveStartReq move_start_req = 3;
+  MoveStopReq move_stop_req = 4;
+}
