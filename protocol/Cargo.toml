@@ -1,0 +1,20 @@
+[package]
+name = "protocol"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+protobuf = "3.2.0"
+lazy_static = "1.4.0"
+anyhow = "1.0.66"
+tokio = { version = "1.21.2", features = ["full"] }
+tokio-util = { version = "0.7.4", features = ["codec"] }
+bytes = "1.2.1"
+futures = "0.3.25"
+
+[build-dependencies]
+protobuf-codegen = "3.2.0"
+protoc-bin-vendored = "3.0.0"
+anyhow = "1.0.66"
