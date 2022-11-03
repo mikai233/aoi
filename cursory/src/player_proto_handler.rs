@@ -5,13 +5,13 @@ use lazy_static::lazy_static;
 use protobuf::{MessageDyn, MessageFull};
 
 use protocol::mapper::cast;
-use protocol::test::{LoginReq, LoginResp, MoveStartReq, MoveStopReq};
+use protocol::test::{LoginReq, LoginResp, PlayerMoveNotify};
 
 use crate::message::WorldProtoMessage;
 use crate::player::PlayerActor;
 
 type PlayerProtoHandler =
-    fn(&mut PlayerActor, &mut Context<PlayerActor>, msg: Box<dyn MessageDyn>) -> anyhow::Result<()>;
+fn(&mut PlayerActor, &mut Context<PlayerActor>, msg: Box<dyn MessageDyn>) -> anyhow::Result<()>;
 
 lazy_static! {
     pub static ref PLAYER_PROTO_HANDLERS: HashMap<String, PlayerProtoHandler> =
@@ -25,12 +25,8 @@ fn register_handlers() -> HashMap<String, PlayerProtoHandler> {
         handle_login_req as PlayerProtoHandler,
     );
     m.insert(
-        MoveStartReq::descriptor().name().to_string(),
-        handle_move_start_req as PlayerProtoHandler,
-    );
-    m.insert(
-        MoveStopReq::descriptor().name().to_string(),
-        handle_move_stop_req as PlayerProtoHandler,
+        PlayerMoveNotify::descriptor().name().to_string(),
+        handle_move_notify as PlayerProtoHandler,
     );
     m
 }
@@ -46,24 +42,24 @@ fn handle_login_req(
     Ok(())
 }
 
-fn handle_move_start_req(
+fn handle_move_notify(
     player: &mut PlayerActor,
     ctx: &mut Context<PlayerActor>,
     msg: Box<dyn MessageDyn>,
 ) -> anyhow::Result<()> {
-    let msg = cast::<MoveStartReq>(msg)?;
+    let msg = cast::<PlayerMoveNotify>(msg)?;
     let world_msg = WorldProtoMessage(player.player_id, msg);
 
     player.world_pid.do_send(world_msg);
     Ok(())
 }
 
-fn handle_move_stop_req(
+fn handle_move_stop(
     player: &mut PlayerActor,
     ctx: &mut Context<PlayerActor>,
     msg: Box<dyn MessageDyn>,
 ) -> anyhow::Result<()> {
-    let msg = cast::<MoveStopReq>(msg)?;
+    let msg = cast::<PlayerMoveNotify>(msg)?;
     let world_msg = WorldProtoMessage(player.player_id, msg);
     player.world_pid.do_send(world_msg);
     Ok(())

@@ -23,35 +23,22 @@ message Vector2{
   int32 y = 2;
 }
 
-enum MoveCmd{
-  MoveLeft = 0;
-  MoveRight = 1;
-  MoveUp = 2;
-  MoveDown = 3;
-  MoveLeftUp = 4;
-  MoveLeftDown = 5;
-  MoveRightUp = 6;
-  MoveRightDown = 7;
-  Jump = 8;
+enum State{
+  Idle = 0;
+  MoveLeft = 1;
+  MoveRight = 2;
+  MoveUp = 3;
+  MoveDown = 4;
 }
 
-message MoveStartReq{
-  MoveCmd cmd = 1;
-  int32 velocity = 2;
-}
-
-message SCMoveStart{
-  MoveCmd cmd = 1;
-  int32 velocity = 2;
-  int32 player_id = 3;
-}
-
-message MoveStopReq{
-  Vector2 location = 1;
-}
-
-message SCMoveStop{
+message PlayerMoveNotify{
   int32 player_id = 1;
-  Vector2 location = 2;
+  State state = 2;
+  Vector2 location = 3;
 }
 
+message SCPlayerMoveNotify{
+  int32 player_id = 1;
+  State state = 2;
+  Vector2 location = 3;
+}

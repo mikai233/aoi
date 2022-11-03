@@ -1,2 +1,3 @@
 [workspace]
-members = ["protocol", "cursory", "client"]
+resolver = "2"
+members = ["protocol", "cursory", "client", "ui"]

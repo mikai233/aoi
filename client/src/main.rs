@@ -1,13 +1,14 @@
 use actix::{Actor, Addr, Message};
 use futures::StreamExt;
 use log::{error, info};
-use protobuf::MessageDyn;
+use protobuf::{Enum, EnumOrUnknown, MessageDyn, MessageField};
+use rand::Rng;
 use tokio::io;
 use tokio::net::TcpStream;
 use tokio_util::codec::{BytesCodec, Framed, FramedRead};
 
 use protocol::codec::{MessageStream, ProtoCodec};
-use protocol::test::LoginReq;
+use protocol::test::{LoginReq, MoveCmd, MoveStartNotify, MoveStopNotify, Vector2};
 
 use crate::client::ClientActor;
 
@@ -29,6 +30,18 @@ impl Message for Response {
 pub struct Request(Box<dyn MessageDyn>);
 
 impl Message for Request {
+    type Result = ();
+}
+
+pub struct Tick;
+
+impl Message for Tick {
+    type Result = ();
+}
+
+pub struct Cmd(String);
+
+impl Message for Cmd {
     type Result = ();
 }
 
@@ -95,6 +108,15 @@ async fn process_client_input(input: bytes::Bytes, pid: &Addr<ClientActor>) -> a
         let mut login = LoginReq::new();
         login.player_id = player_id;
         pid.do_send(Request(Box::new(login)));
+    }
+
+    if cmd == "move start" {
+        pid.do_send(Cmd("move start".to_string()))
+    }
+
+    if cmd == "move stop" {
+        let req = MoveStopNotify::new();
+        pid.do_send(Request(Box::new(req)));
     }
     Ok(())
 }
