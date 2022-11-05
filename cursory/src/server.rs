@@ -6,7 +6,7 @@ use tokio_util::codec::Framed;
 
 use protocol::codec::{MessageStream, ProtoCodec};
 
-use crate::message::PlayerProtoMessage;
+use crate::message::{PlayerProtoMessage, PoisonPill};
 use crate::player::PlayerActor;
 use crate::world::WorldActor;
 

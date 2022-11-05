@@ -7,12 +7,14 @@ use protobuf::MessageDyn;
 use tokio::sync::Mutex;
 
 use protocol::codec::MessageSink;
+use protocol::test::State;
 
 use crate::world::WorldActor;
 
 pub struct PlayerActor {
     pub conn: Arc<Mutex<MessageSink>>,
     pub location: Location,
+    pub state: State,
     pub player_id: i32,
     pub world_pid: Addr<WorldActor>,
 }
@@ -23,6 +25,7 @@ impl PlayerActor {
             player_id: 0,
             conn: Arc::new(Mutex::new(conn)),
             location: Location::default(),
+            state: State::Idle,
             world_pid,
         }
     }
@@ -54,9 +57,9 @@ impl Actor for PlayerActor {
 }
 
 //每秒tick广播位置修正
-#[derive(Default)]
+#[derive(Default, Debug, Copy, Clone)]
 pub struct Location {
-    pub x: i32,
-    pub y: i32,
-    pub activate: bool,
+    pub x: f64,
+    pub y: f64,
+    pub state: State,
 }

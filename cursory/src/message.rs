@@ -1,9 +1,10 @@
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 
-use actix::{Addr, Message};
+use actix::{Actor, Addr, Message};
+use actix::dev::{MessageResponse, OneshotSender};
 use protobuf::MessageDyn;
 
-use crate::player::PlayerActor;
+use crate::player::{Location, PlayerActor};
 
 pub struct PoisonPill;
 
@@ -39,4 +40,27 @@ pub struct SessionExpired;
 
 impl Message for SessionExpired {
     type Result = ();
+}
+
+pub struct Response(pub Box<dyn MessageDyn>);
+
+impl Message for Response {
+    type Result = ();
+}
+
+#[derive(Message)]
+#[rtype(result = "LocationAns")]
+pub struct LocationAsk;
+
+#[derive(Debug)]
+pub struct LocationAns(pub Location);
+
+impl<A, M> MessageResponse<A, M> for LocationAns
+    where A: Actor,
+          M: Message<Result=LocationAns> {
+    fn handle(self, ctx: &mut A::Context, tx: Option<OneshotSender<LocationAns>>) {
+        if let Some(tx) = tx {
+            tx.send(self).unwrap();
+        }
+    }
 }

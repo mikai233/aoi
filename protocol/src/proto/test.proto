@@ -15,12 +15,12 @@ message LoginReq{
 }
 
 message LoginResp{
-
+  int32 player_id = 1;
 }
 
 message Vector2{
-  int32 x = 1;
-  int32 y = 2;
+  double x = 1;
+  double y = 2;
 }
 
 enum State{
@@ -29,6 +29,20 @@ enum State{
   MoveRight = 2;
   MoveUp = 3;
   MoveDown = 4;
+}
+
+message SCPlayerEnterNotify{
+  int32 player_id = 1;
+}
+
+message SCPlayerLeaveNotify{
+  int32 player_id = 1;
+}
+
+message SCSyncPlayerLocationNotify{
+  int32 player_id = 1;
+  State state = 2;
+  Vector2 location = 3;
 }
 
 message PlayerMoveNotify{

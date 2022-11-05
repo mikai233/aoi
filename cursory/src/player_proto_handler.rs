@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
-use actix::Context;
+use actix::{AsyncContext, Context};
 use lazy_static::lazy_static;
 use protobuf::{MessageDyn, MessageFull};
 
 use protocol::mapper::cast;
-use protocol::test::{LoginReq, LoginResp, PlayerMoveNotify};
+use protocol::test::{LoginReq, LoginResp, PlayerMoveNotify, SCPlayerEnterNotify};
 
-use crate::message::WorldProtoMessage;
+use crate::message::{PlayerLogin, WorldProtoMessage};
 use crate::player::PlayerActor;
 
 type PlayerProtoHandler =
@@ -38,7 +38,13 @@ fn handle_login_req(
 ) -> anyhow::Result<()> {
     let msg = cast::<LoginReq>(msg)?;
     player.player_id = msg.player_id;
-    player.send(ctx, Box::new(LoginResp::new()));
+    let mut rsp = LoginResp::new();
+    rsp.player_id = player.player_id;
+    player.send(ctx, Box::new(rsp));
+    player.world_pid.do_send(PlayerLogin(player.player_id, ctx.address()));
+    let mut enter = SCPlayerEnterNotify::new();
+    enter.player_id = player.player_id;
+    player.world_pid.do_send(WorldProtoMessage(player.player_id, Box::new(enter)));
     Ok(())
 }
 
@@ -50,17 +56,6 @@ fn handle_move_notify(
     let msg = cast::<PlayerMoveNotify>(msg)?;
     let world_msg = WorldProtoMessage(player.player_id, msg);
 
-    player.world_pid.do_send(world_msg);
-    Ok(())
-}
-
-fn handle_move_stop(
-    player: &mut PlayerActor,
-    ctx: &mut Context<PlayerActor>,
-    msg: Box<dyn MessageDyn>,
-) -> anyhow::Result<()> {
-    let msg = cast::<PlayerMoveNotify>(msg)?;
-    let world_msg = WorldProtoMessage(player.player_id, msg);
     player.world_pid.do_send(world_msg);
     Ok(())
 }

@@ -11,16 +11,16 @@ impl Handler<WorldProtoMessage> for WorldActor {
     type Result = ();
 
     fn handle(&mut self, msg: WorldProtoMessage, ctx: &mut Self::Context) -> Self::Result {
-        info!("world:{} receive msg:{}", self.world_id, msg.0);
         let player_id = msg.0;
         let msg = msg.1;
         let msg_name = msg.descriptor_dyn().name().to_string();
+        info!("world:{} receive player:{} msg:{}", self.world_id,player_id, msg_name);
         match WORLD_PROTO_HANDLERS.get(&msg_name) {
             None => {
                 warn!("world:{} msg:{} handle not found", self.world_id, msg_name);
             }
             Some(handler) => {
-                match handler(self, player_id, msg) {
+                match handler(self, ctx, player_id, msg) {
                     Ok(_) => {}
                     Err(err) => {
                         error!(

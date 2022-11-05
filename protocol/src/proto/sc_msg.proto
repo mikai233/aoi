@@ -8,4 +8,7 @@ message SC_MSG{
   TestResp test_resp = 1;
   LoginResp login_resp = 2;
   SCPlayerMoveNotify sc_player_move_notify = 3;
+  SCPlayerEnterNotify sc_player_enter_notify = 4;
+  SCPlayerLeaveNotify sc_player_leave_notify = 5;
+  SCSyncPlayerLocationNotify sc_sync_player_location_notify = 6;
 }
