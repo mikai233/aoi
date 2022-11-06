@@ -1,65 +1,50 @@
-use std::sync::Arc;
-
-use actix::{Actor, Addr, AsyncContext, Context};
-use futures::SinkExt;
-use log::{error, info};
 use protobuf::MessageDyn;
-use tokio::sync::Mutex;
+use rand::{Rng, thread_rng};
 
-use protocol::codec::MessageSink;
-use protocol::test::State;
+use protocol::test::{Color, State};
 
-use crate::world::WorldActor;
+use crate::message::PlayerMessageWrap;
+use crate::world::WorldMessageSender;
 
-pub struct PlayerActor {
-    pub conn: Arc<Mutex<MessageSink>>,
-    pub location: Location,
-    pub state: State,
+pub type PlayerMessageSender = tokio::sync::mpsc::UnboundedSender<PlayerMessageWrap>;
+pub type ProtoMessageSender = tokio::sync::mpsc::UnboundedSender<Box<dyn MessageDyn>>;
+
+pub struct Player {
     pub player_id: i32,
-    pub world_pid: Addr<WorldActor>,
+    pub self_sender: PlayerMessageSender,
+    pub proto_sender: ProtoMessageSender,
+    pub state: PlayerState,
+    pub world_sender: WorldMessageSender,
 }
 
-impl PlayerActor {
-    pub fn new(conn: MessageSink, world_pid: Addr<WorldActor>) -> Self {
+impl Player {
+    pub fn new(self_sender: PlayerMessageSender, proto_sender: ProtoMessageSender, world_sender: WorldMessageSender) -> Self {
         Self {
             player_id: 0,
-            conn: Arc::new(Mutex::new(conn)),
-            location: Location::default(),
-            state: State::Idle,
-            world_pid,
+            proto_sender,
+            self_sender,
+            world_sender,
+            state: PlayerState::default(),
         }
     }
-    pub fn send(&mut self, ctx: &mut Context<Self>, msg: Box<dyn MessageDyn>) {
-        let conn = self.conn.clone();
-        let player_id = self.player_id;
-        let f = actix::fut::wrap_future(async move {
-            match conn.lock().await.send(msg).await {
-                Ok(_) => {}
-                Err(err) => {
-                    error!("player:{} send msg err:{}", player_id, err);
-                }
-            };
-        });
-        ctx.spawn(f);
-    }
 }
 
-impl Actor for PlayerActor {
-    type Context = Context<Self>;
-
-    fn started(&mut self, ctx: &mut Self::Context) {
-        info!("player:{} started", self.player_id);
-    }
-
-    fn stopped(&mut self, ctx: &mut Self::Context) {
-        info!("player:{} stopped", self.player_id);
-    }
-}
-
-//每秒tick广播位置修正
-#[derive(Default, Debug, Copy, Clone)]
-pub struct Location {
+#[derive(Default, Debug, Clone)]
+pub struct PlayerState {
     pub x: f64,
     pub y: f64,
     pub state: State,
+    pub color: Color,
+}
+
+pub fn random_color() -> Color {
+    let mut thread_rng = thread_rng();
+    let r = thread_rng.gen_range(0..1000) as f64 / 1000.;
+    let g = thread_rng.gen_range(0..1000) as f64 / 1000.;
+    let b = thread_rng.gen_range(0..1000) as f64 / 1000.;
+    let mut color = Color::new();
+    color.r = r;
+    color.g = g;
+    color.b = b;
+    color
 }

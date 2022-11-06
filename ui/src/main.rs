@@ -12,14 +12,14 @@ use bevy::utils::default;
 use futures::SinkExt;
 use futures::StreamExt;
 use protobuf::{EnumOrUnknown, MessageDyn, MessageField, MessageFull};
-use rand::random;
-use tokio::net::TcpStream;
+use rand::{random, thread_rng};
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
 use tokio_util::codec::Framed;
 
 use protocol::codec::ProtoCodec;
-use protocol::test::{LoginReq, LoginResp, PlayerMoveNotify, SCPlayerEnterNotify, SCPlayerMoveNotify, SCSyncPlayerLocationNotify, State, Vector2};
+use protocol::mapper::kcp_config;
+use protocol::test::{LoginReq, LoginResp, PlayerMoveNotify, SCOtherPlayersStateNotify, SCPlayerEnterNotify, SCPlayerMoveNotify, State, Vector2};
 
 type ProtoMessage = Box<dyn MessageDyn>;
 
@@ -55,7 +55,7 @@ fn main() {
 fn setup(mut commands: Commands) {
     commands.spawn_bundle(Camera2dBundle::default());
     commands.insert_resource(FuseTime {
-        timer: Timer::new(Duration::from_millis(10), true),
+        timer: Timer::new(Duration::from_millis(100), true),
     });
     // commands.spawn_bundle(SpriteBundle {
     //     transform: Transform { scale: Vec3::splat(30.), ..default() },
@@ -72,26 +72,28 @@ fn handle_server_msg(mut commands: Commands, mut from_server: ResMut<mpsc::Recei
         if msg_name == LoginResp::descriptor().name() {
             let msg = message.downcast_box::<LoginResp>().unwrap();
             player_id = msg.player_id;
-            spawn_player(&mut commands, player_id, true, None);
+            spawn_player(&mut commands, player_id, true, msg.color.unwrap(), None);
         } else if msg_name == SCPlayerEnterNotify::descriptor().name() {
             // let self_player_id = if query.is_empty() { player_id } else { query.single().0 };
             let msg = message.downcast_box::<SCPlayerEnterNotify>().unwrap();
             // if self_player_id != msg.player_id {
-            spawn_player(&mut commands, msg.player_id, false, None);
+            spawn_player(&mut commands, msg.player_id, false, msg.color.unwrap(), None);
             // commands.spawn_bundle(SpriteBundle {
             //     transform: Transform { scale: Vec3::splat(30.), ..default() },
             //     sprite: Sprite { color: Color::rgb(50., 50., 50.), ..default() },
             //     ..default()
             // }).insert(Player(msg.player_id));
             // }
-        } else if msg_name == SCSyncPlayerLocationNotify::descriptor().name() {
-            let msg = message.downcast_box::<SCSyncPlayerLocationNotify>().unwrap();
-            let location = Location {
-                x: msg.location.x,
-                y: msg.location.y,
-                state: msg.state.unwrap(),
-            };
-            spawn_player(&mut commands, msg.player_id, false, Some(location));
+        } else if msg_name == SCOtherPlayersStateNotify::descriptor().name() {
+            let msg = message.downcast_box::<SCOtherPlayersStateNotify>().unwrap();
+            for each_player in msg.players {
+                let location = Location {
+                    x: each_player.location.x,
+                    y: each_player.location.y,
+                    state: each_player.state.unwrap(),
+                };
+                spawn_player(&mut commands, each_player.player_id, false, each_player.color.unwrap(), Some(location));
+            }
         } else if msg_name == SCPlayerMoveNotify::descriptor().name() {
             let msg = message.downcast_box::<SCPlayerMoveNotify>().unwrap();
             others.for_each_mut(|(mut t, p)| {
@@ -104,15 +106,19 @@ fn handle_server_msg(mut commands: Commands, mut from_server: ResMut<mpsc::Recei
     }
 }
 
-fn spawn_player(commands: &mut Commands, player_id: i32, is_self: bool, location: Option<Location>) {
+fn spawn_player(commands: &mut Commands, player_id: i32, is_self: bool, color: protocol::test::Color, location: Option<Location>) {
     let v3 = if let Some(l) = location {
         Vec3::new(l.x as f32, l.y as f32, 0.)
     } else {
         Vec3::default()
     };
+    let mut thread_rng = thread_rng();
+    let r = color.r as f32;
+    let g = color.g as f32;
+    let b = color.b as f32;
     let mut c = commands.spawn_bundle(SpriteBundle {
-        transform: Transform { scale: Vec3::splat(30.), translation: v3, ..default() },
-        sprite: Sprite { color: Color::rgb(50., 50., 50.), ..default() },
+        transform: Transform { scale: Vec3::splat(20.), translation: v3, ..default() },
+        sprite: Sprite { color: Color::rgb(r, g, b), ..default() },
         ..default()
     });
     c.insert(Player(player_id));
@@ -176,8 +182,11 @@ fn start_networking(mut commands: Commands, runtime: Res<Runtime>) {
     let (to_server_sender, mut to_server_receiver) = mpsc::channel::<ProtoMessage>(2000);
 
     runtime.spawn(async move {
-        let addr = "127.0.0.1:4895";
-        let stream = TcpStream::connect(addr).await.unwrap();
+        let addr = "172.20.198.152:4895";
+        // let addr = "127.0.0.1:4895";
+        let cfg = kcp_config();
+        let stream = tokio_kcp::KcpStream::connect(&cfg, addr.parse().unwrap()).await.unwrap();
+        // let stream = TcpStream::connect(addr).await.unwrap();
         let codec = ProtoCodec::new(false);
         let mut framed = Framed::new(stream, codec);
         let player_id: i32 = random();

@@ -1,55 +1,55 @@
-use std::collections::hash_map::Entry;
+use log::warn;
+use protobuf::{EnumOrUnknown, MessageDyn, MessageField};
 
-use actix::Handler;
-use log::{error, info, warn};
+use protocol::mapper::cast;
+use protocol::test::{PlayerMoveNotify, SCOtherPlayersStateNotify, SCPlayerEnterNotify, Vector2};
+use protocol::test::scother_players_state_notify::Bundle;
+use protocol::test::SCPlayerMoveNotify;
 
-use crate::message::{PlayerLogin, SessionExpired, WorldProtoMessage};
-use crate::world::WorldActor;
-use crate::world_proto_handler::WORLD_PROTO_HANDLERS;
+use crate::player::{PlayerMessageSender, PlayerState, ProtoMessageSender};
+use crate::world::World;
 
-impl Handler<WorldProtoMessage> for WorldActor {
-    type Result = ();
-
-    fn handle(&mut self, msg: WorldProtoMessage, ctx: &mut Self::Context) -> Self::Result {
-        let player_id = msg.0;
-        let msg = msg.1;
-        let msg_name = msg.descriptor_dyn().name().to_string();
-        info!("world:{} receive player:{} msg:{}", self.world_id,player_id, msg_name);
-        match WORLD_PROTO_HANDLERS.get(&msg_name) {
-            None => {
-                warn!("world:{} msg:{} handle not found", self.world_id, msg_name);
-            }
-            Some(handler) => {
-                match handler(self, ctx, player_id, msg) {
-                    Ok(_) => {}
-                    Err(err) => {
-                        error!(
-                            "world:{} handle msg:{} err:{}",
-                            self.world_id, msg_name, err
-                        );
-                    }
-                };
-            }
-        };
+async fn handle_move_notify(world: &mut World, player_id: i32, msg: Box<dyn MessageDyn>) -> anyhow::Result<()> {
+    let msg = cast::<PlayerMoveNotify>(msg)?;
+    if let Some(state) = world.player_state.get_mut(&player_id) {
+        state.state = msg.state.unwrap();
+        state.x = msg.location.x;
+        state.y = msg.location.y;
+    } else {
+        warn!("player:{} not found in world:{}",player_id,world.world_id);
     }
+    for player in world.sessions.values() {
+        let mut notify = SCPlayerMoveNotify::new();
+        notify.state = msg.state;
+        notify.location = msg.location.clone();
+        notify.player_id = msg.player_id;
+        let _ = player.1.send(Box::new(notify));
+    }
+    Ok(())
 }
 
-impl Handler<PlayerLogin> for WorldActor {
-    type Result = ();
-
-    fn handle(&mut self, msg: PlayerLogin, ctx: &mut Self::Context) -> Self::Result {
-        let player_id = msg.0;
-        let addr = msg.1;
-        let entry = self.sessions.entry(player_id);
-        match entry {
-            Entry::Occupied(mut o) => {
-                o.get().do_send(SessionExpired);
-                o.insert(addr);
-            }
-            Entry::Vacant(v) => {
-                v.insert(addr);
-            }
+pub async fn handle_player_login(world: &mut World, player_id: i32, player_sender: PlayerMessageSender, proto_sender: ProtoMessageSender, state: PlayerState) -> anyhow::Result<()> {
+    world.sessions.insert(player_id, (player_sender, proto_sender));
+    world.player_state.insert(player_id, state.clone());
+    let mut notify = SCPlayerEnterNotify::new();
+    notify.player_id = player_id;
+    notify.color = MessageField::some(state.color);
+    world.broad_cast_others(player_id, Box::new(notify));
+    let mut others_state_notify = SCOtherPlayersStateNotify::new();
+    for (&id, state) in &world.player_state {
+        if id != player_id {
+            let mut b = Bundle::new();
+            b.player_id = id;
+            b.state = EnumOrUnknown::new(state.state.clone());
+            b.color = MessageField::some(state.color.clone());
+            let mut v = Vector2::new();
+            v.x = state.x;
+            v.y = state.y;
+            b.location = MessageField::some(v);
+            others_state_notify.players.push(b);
         }
-        info!("player:{} login to world:{}", player_id, self.world_id);
     }
+    let sender = &world.sessions[&player_id];
+    let _ = sender.1.send(Box::new(others_state_notify));
+    Ok(())
 }

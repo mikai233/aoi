@@ -1,14 +1,13 @@
 use actix::{Actor, Addr, Message};
 use futures::StreamExt;
-use log::{error, info};
-use protobuf::{Enum, EnumOrUnknown, MessageDyn, MessageField};
+use log::error;
+use protobuf::{Enum, MessageDyn};
 use rand::Rng;
-use tokio::io;
-use tokio::net::TcpStream;
-use tokio_util::codec::{BytesCodec, Framed, FramedRead};
+use tokio::task::JoinHandle;
+use tokio_util::codec::Framed;
 
 use protocol::codec::{MessageStream, ProtoCodec};
-use protocol::test::{LoginReq, MoveCmd, MoveStartNotify, MoveStopNotify, Vector2};
+use protocol::mapper::kcp_config;
 
 use crate::client::ClientActor;
 
@@ -39,46 +38,35 @@ impl Message for Tick {
     type Result = ();
 }
 
-pub struct Cmd(String);
+pub const PLAYER_COUNT: usize = 200;
 
-impl Message for Cmd {
-    type Result = ();
-}
+pub const HORIZONTAL_BOUNDARY: f64 = 1000.;
+
+pub const VERTICAL_BOUNDARY: f64 = 1000.;
+
 
 #[actix_rt::main]
 async fn main() -> anyhow::Result<()> {
     std::env::set_var("RUST_LOG", "INFO");
     env_logger::init();
     let addr = "127.0.0.1:4895";
-    let stdin = FramedRead::new(io::stdin(), BytesCodec::new());
-    let mut stdin = stdin.map(|i| i.map(|bytes| bytes.freeze()));
-    let stream = TcpStream::connect(addr).await?;
-    let framed = Framed::new(stream, ProtoCodec::new(false));
-    let (sink, mut stream) = framed.split();
-    let client = ClientActor::new(sink);
-    let pid = client.start();
-    start_receive_msg(stream, pid.clone());
-    loop {
-        tokio::select! {
-            _ = tokio::signal::ctrl_c() => {
-                info!("signal ctrl c, close client");
-                break;
-            }
-            input = stdin.next() => match input {
-                Some(Ok(input)) => {
-                    process_client_input(input, &pid).await?;
-                }
-                Some(Err(e)) => {
-                    error!("input err:{}", e);
-                }
-                None => break,
+    let mut clients = vec![];
+    for _ in 0..PLAYER_COUNT {
+        let c = actix_rt::spawn(start_client(addr));
+        clients.push(c);
+    }
+    for c in clients {
+        match c.await {
+            Ok(_) => {}
+            Err(error) => {
+                error!("{}",error);
             }
         }
     }
     Ok(())
 }
 
-fn start_receive_msg(mut stream: MessageStream, pid: Addr<ClientActor>) {
+fn start_receive_msg(mut stream: MessageStream, pid: Addr<ClientActor>) -> JoinHandle<()> {
     tokio::spawn(async move {
         loop {
             match stream.next().await {
@@ -94,29 +82,21 @@ fn start_receive_msg(mut stream: MessageStream, pid: Addr<ClientActor>) {
                 }
             };
         }
-    });
+    })
 }
 
-async fn process_client_input(input: bytes::Bytes, pid: &Addr<ClientActor>) -> anyhow::Result<()> {
-    let cmd = String::from_utf8_lossy(input.as_ref())
-        .trim_end()
-        .to_string();
-    info!("cmd:{}", cmd);
-    if cmd.starts_with("login") {
-        let cmd = cmd.splitn(2, ' ').collect::<Vec<&str>>();
-        let player_id: i32 = cmd[1].parse()?;
-        let mut login = LoginReq::new();
-        login.player_id = player_id;
-        pid.do_send(Request(Box::new(login)));
-    }
+async fn start_client(addr: &str) {
+    let cfg = kcp_config();
+    let stream = tokio_kcp::KcpStream::connect(&cfg, addr.parse().unwrap()).await.unwrap();
 
-    if cmd == "move start" {
-        pid.do_send(Cmd("move start".to_string()))
-    }
-
-    if cmd == "move stop" {
-        let req = MoveStopNotify::new();
-        pid.do_send(Request(Box::new(req)));
-    }
-    Ok(())
+    let framed = Framed::new(stream, ProtoCodec::new(false));
+    let (sink, mut stream) = framed.split();
+    let client = ClientActor::new(sink);
+    let pid = client.start();
+    match start_receive_msg(stream, pid.clone()).await {
+        Ok(_) => {}
+        Err(err) => {
+            error!("{}",err);
+        }
+    };
 }

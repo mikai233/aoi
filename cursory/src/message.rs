@@ -1,10 +1,10 @@
 use std::fmt::{Debug, Display, Formatter};
 
-use actix::{Actor, Addr, Message};
+use actix::{Actor, Message};
 use actix::dev::{MessageResponse, OneshotSender};
 use protobuf::MessageDyn;
 
-use crate::player::{Location, PlayerActor};
+use crate::player::{PlayerMessageSender, PlayerState, ProtoMessageSender};
 
 pub struct PoisonPill;
 
@@ -30,12 +30,6 @@ impl Display for PoisonPill {
     }
 }
 
-pub struct PlayerLogin(pub i32, pub Addr<PlayerActor>);
-
-impl Message for PlayerLogin {
-    type Result = ();
-}
-
 pub struct SessionExpired;
 
 impl Message for SessionExpired {
@@ -49,18 +43,59 @@ impl Message for Response {
 }
 
 #[derive(Message)]
-#[rtype(result = "LocationAns")]
-pub struct LocationAsk;
+#[rtype(result = "PlayerStateAns")]
+pub struct PlayerStateAsk;
 
 #[derive(Debug)]
-pub struct LocationAns(pub Location);
+pub struct PlayerStateAns(pub PlayerState);
 
-impl<A, M> MessageResponse<A, M> for LocationAns
+impl<A, M> MessageResponse<A, M> for PlayerStateAns
     where A: Actor,
-          M: Message<Result=LocationAns> {
-    fn handle(self, ctx: &mut A::Context, tx: Option<OneshotSender<LocationAns>>) {
+          M: Message<Result=PlayerStateAns> {
+    fn handle(self, ctx: &mut A::Context, tx: Option<OneshotSender<PlayerStateAns>>) {
         if let Some(tx) = tx {
             tx.send(self).unwrap();
         }
     }
 }
+
+#[derive(Debug)]
+pub struct WorldMessageWrap {
+    pub player_id: i32,
+    pub message: WorldMessage,
+}
+
+impl WorldMessageWrap {
+    pub fn new(player_id: i32, message: WorldMessage) -> Self {
+        Self {
+            player_id,
+            message,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum WorldMessage {
+    PlayerLogin(PlayerMessageSender, ProtoMessageSender, PlayerState),
+    PlayerLogout,
+    PlayerMove(Box<dyn MessageDyn>),
+    Proto(Box<dyn MessageDyn>),
+}
+
+#[derive(Debug)]
+pub struct PlayerMessageWrap {
+    pub world_id: i32,
+    pub message: PlayerMessage,
+}
+
+impl PlayerMessageWrap {
+    pub fn new(world_id: i32, message: PlayerMessage) -> Self {
+        Self {
+            world_id,
+            message,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum PlayerMessage {}

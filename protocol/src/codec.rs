@@ -5,13 +5,13 @@ use anyhow::anyhow;
 use bytes::{BufMut, BytesMut};
 use futures::stream::{SplitSink, SplitStream};
 use protobuf::MessageDyn;
-use tokio::net::TcpStream;
+use tokio_kcp::KcpStream;
 use tokio_util::codec::{Decoder, Encoder, Framed};
 
 use crate::mapper::{CS_ID_DESC_MAP, CS_NAME_ID_MAP, SC_ID_DESC_MAP, SC_NAME_ID_MAP};
 
-pub type MessageSink = SplitSink<Framed<TcpStream, ProtoCodec>, Box<dyn MessageDyn>>;
-pub type MessageStream = SplitStream<Framed<TcpStream, ProtoCodec>>;
+pub type MessageSink = SplitSink<Framed<KcpStream, ProtoCodec>, Box<dyn MessageDyn>>;
+pub type MessageStream = SplitStream<Framed<KcpStream, ProtoCodec>>;
 
 pub struct ProtoCodec {
     pub is_server: bool,

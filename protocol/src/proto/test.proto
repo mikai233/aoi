@@ -16,11 +16,18 @@ message LoginReq{
 
 message LoginResp{
   int32 player_id = 1;
+  Color color = 2;
 }
 
 message Vector2{
   double x = 1;
   double y = 2;
+}
+
+message Color{
+  double r = 1;
+  double g = 2;
+  double b = 3;
 }
 
 enum State{
@@ -33,16 +40,21 @@ enum State{
 
 message SCPlayerEnterNotify{
   int32 player_id = 1;
+  Color color = 2;
 }
 
 message SCPlayerLeaveNotify{
   int32 player_id = 1;
 }
 
-message SCSyncPlayerLocationNotify{
-  int32 player_id = 1;
-  State state = 2;
-  Vector2 location = 3;
+message SCOtherPlayersStateNotify{
+  message Bundle{
+    int32 player_id = 1;
+    State state = 2;
+    Vector2 location = 3;
+    Color color = 4;
+  }
+  repeated Bundle players = 1;
 }
 
 message PlayerMoveNotify{

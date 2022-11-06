@@ -1,68 +1,37 @@
-use actix::{ActorContext, Handler};
-use log::{error, info, warn};
+use futures::SinkExt;
+use protobuf::{MessageDyn, MessageField};
+use protobuf::reflect::MessageDescriptor;
 
-use crate::message::{LocationAns, LocationAsk, PlayerProtoMessage, PoisonPill, Response, SessionExpired};
-use crate::player::PlayerActor;
-use crate::player_proto_handler::PLAYER_PROTO_HANDLERS;
+use protocol::mapper::cast;
+use protocol::test::{LoginReq, LoginResp, PlayerMoveNotify};
 
-impl Handler<PlayerProtoMessage> for PlayerActor {
-    type Result = ();
+use crate::message::WorldMessage::{PlayerLogin, PlayerMove};
+use crate::message::WorldMessageWrap;
+use crate::player::{Player, random_color};
 
-    fn handle(&mut self, msg: PlayerProtoMessage, ctx: &mut Self::Context) -> Self::Result {
-        info!("player:{} receive msg:{}", self.player_id, msg.0);
-        let msg_name = msg.0.descriptor_dyn().name().to_string();
-        match PLAYER_PROTO_HANDLERS.get(&msg_name) {
-            None => {
-                warn!(
-                    "player:{} msg:{} handle not found",
-                    self.player_id, msg_name
-                );
-            }
-            Some(handler) => {
-                match handler(self, ctx, msg.0) {
-                    Ok(_) => {}
-                    Err(err) => {
-                        error!(
-                            "player:{} handle msg:{} err:{}",
-                            self.player_id, msg_name, err
-                        );
-                    }
-                };
-            }
-        };
-    }
+pub fn proto_name(descriptor: MessageDescriptor) -> String {
+    descriptor.name().to_string()
 }
 
-impl Handler<PoisonPill> for PlayerActor {
-    type Result = ();
+pub async fn handle_login_req(player: &mut Player, msg: Box<dyn MessageDyn>) -> anyhow::Result<()> {
+    let msg = cast::<LoginReq>(msg)?;
+    player.player_id = msg.player_id;
+    let mut rsp = LoginResp::new();
+    rsp.player_id = player.player_id;
+    let color = random_color();
+    player.state.color = color;
+    rsp.color = MessageField::some(player.state.color.clone());
 
-    fn handle(&mut self, msg: PoisonPill, ctx: &mut Self::Context) -> Self::Result {
-        info!("player:{} receive msg:{} stop self", self.player_id, msg);
-        ctx.stop();
-    }
+    player.proto_sender.send(Box::new(rsp)).unwrap();
+    player.world_sender.send(WorldMessageWrap::new(player.player_id, PlayerLogin(player.self_sender.clone(), player.proto_sender.clone(), player.state.clone())))?;
+    Ok(())
 }
 
-impl Handler<SessionExpired> for PlayerActor {
-    type Result = ();
-
-    fn handle(&mut self, _: SessionExpired, ctx: &mut Self::Context) -> Self::Result {
-        info!("player:{} session expired, stop self", self.player_id);
-        ctx.stop();
-    }
-}
-
-impl Handler<Response> for PlayerActor {
-    type Result = ();
-
-    fn handle(&mut self, msg: Response, ctx: &mut Self::Context) -> Self::Result {
-        self.send(ctx, msg.0);
-    }
-}
-
-impl Handler<LocationAsk> for PlayerActor {
-    type Result = LocationAns;
-
-    fn handle(&mut self, msg: LocationAsk, ctx: &mut Self::Context) -> Self::Result {
-        LocationAns(self.location.clone())
-    }
+pub async fn handle_move_notify(player: &mut Player, msg: Box<dyn MessageDyn>) -> anyhow::Result<()> {
+    let move_notify = cast::<PlayerMoveNotify>(msg)?;
+    let state = &mut player.state;
+    state.x = move_notify.location.x;
+    state.y = move_notify.location.y;
+    player.world_sender.send(WorldMessageWrap::new(player.player_id, PlayerMove(move_notify)))?;
+    Ok(())
 }
