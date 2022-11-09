@@ -1,52 +1,48 @@
-use std::sync::Arc;
-
-use actix::{Actor, AsyncContext, Context};
 use futures::SinkExt;
 use futures::stream::SplitSink;
-use log::{error, info};
+use log::info;
 use protobuf::{Enum, EnumOrUnknown, MessageDyn, MessageField};
-use rand::{random, Rng};
-use tokio::sync::Mutex;
+use rand::{Rng, thread_rng};
 use tokio_kcp::KcpStream;
 use tokio_util::codec::Framed;
 
-use protocol::codec::{MessageSink, ProtoCodec};
-use protocol::test::{LoginReq, PlayerMoveNotify, State, Vector2};
+use protocol::codec::ProtoCodec;
+use protocol::test::{PlayerMoveNotify, State, Vector2};
 
-use crate::{HORIZONTAL_BOUNDARY, Tick, VERTICAL_BOUNDARY};
+use crate::{HORIZONTAL_BOUNDARY, VERTICAL_BOUNDARY};
 
-pub struct ClientActor {
+type Tx = tokio::sync::mpsc::UnboundedSender<ClientMessage>;
+type Rx = tokio::sync::mpsc::UnboundedReceiver<ClientMessage>;
+type MessageSink = SplitSink<Framed<KcpStream, ProtoCodec>, Box<dyn MessageDyn>>;
+
+pub enum ClientMessage {
+    Proto(Box<dyn MessageDyn>),
+    Tick,
+}
+
+pub struct Client {
     pub player_id: i32,
-    pub conn: Arc<Mutex<MessageSink>>,
+    pub conn: MessageSink,
+    pub tx: Tx,
+    pub rx: Rx,
     pub x: f64,
     pub y: f64,
     pub velocity: f64,
     pub state: State,
 }
 
-impl ClientActor {
-    pub fn new(conn: SplitSink<Framed<KcpStream, ProtoCodec>, Box<dyn MessageDyn>>) -> Self {
+impl Client {
+    pub fn new(conn: MessageSink, tx: Tx, rx: Rx) -> Self {
         Self {
             player_id: 0,
-            conn: Arc::new(Mutex::new(conn)),
+            conn,
+            tx,
+            rx,
             x: 0.,
             y: 0.,
             velocity: 10.,
             state: State::Idle,
         }
-    }
-    pub fn send(&mut self, ctx: &mut Context<Self>, msg: Box<dyn MessageDyn>) {
-        let conn = self.conn.clone();
-        let player_id = self.player_id;
-        let f = actix::fut::wrap_future(async move {
-            match conn.lock().await.send(msg).await {
-                Ok(_) => {}
-                Err(err) => {
-                    error!("client:{} send msg err:{}", player_id, err);
-                }
-            };
-        });
-        ctx.spawn(f);
     }
 
     pub fn random_state() -> State {
@@ -57,7 +53,7 @@ impl ClientActor {
         move_state
     }
 
-    pub fn notify_and_move(&mut self, ctx: &mut Context<ClientActor>) {
+    pub async fn notify_and_move(&mut self) -> anyhow::Result<()> {
         let mut notify = PlayerMoveNotify::new();
         notify.player_id = self.player_id;
         notify.state = EnumOrUnknown::new(self.state.clone());
@@ -65,7 +61,7 @@ impl ClientActor {
         v.x = self.x;
         v.y = self.y;
         notify.location = MessageField::some(v);
-        self.send(ctx, Box::new(notify));
+        self.conn.send(Box::new(notify)).await?;
 
         match self.state {
             State::Idle => {}
@@ -94,19 +90,44 @@ impl ClientActor {
         if self.y > VERTICAL_BOUNDARY {
             self.y = VERTICAL_BOUNDARY;
         }
+        Ok(())
     }
-}
 
-impl Actor for ClientActor {
-    type Context = Context<Self>;
-
-    fn started(&mut self, ctx: &mut Self::Context) {
-        info!("client actor:{} started", self.player_id);
-        let player_id = random();
-        self.player_id = player_id;
-        let mut login = LoginReq::new();
-        login.player_id = player_id;
-        self.send(ctx, Box::new(login));
-        ctx.notify(Tick);
+    pub async fn start(&mut self) {
+        loop {
+            match self.rx.recv().await {
+                None => {
+                    break;
+                }
+                Some(message) => {
+                    match message {
+                        ClientMessage::Proto(resp) => {
+                            let desc = resp.descriptor_dyn();
+                            let msg_name = desc.name();
+                            info!("client:{} receive msg:{}=>{}",self.player_id,msg_name,resp);
+                        }
+                        ClientMessage::Tick => {
+                            self.handle_tick().await;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    async fn handle_tick(&mut self) {
+        //todo 插值之后再处理
+        // let current_state = self.state;
+        // let change_state = thread_rng().gen_ratio(1, 10);
+        // if change_state {
+        //     let new_state = Client::random_state();
+        //     if new_state != current_state {
+        //         self.state = new_state;
+        //         self.notify_and_move().await.unwrap();
+        //     }
+        // }
+        self.notify_and_move().await.unwrap();
+        if thread_rng().gen_ratio(1, 10) {
+            self.state = Client::random_state();
+        }
     }
 }

@@ -1,7 +1,7 @@
 use std::future::Future;
 
 use futures::{SinkExt, StreamExt};
-use log::{error, warn};
+use log::{error, info, warn};
 use protobuf::{Message, MessageDyn};
 use tokio_kcp::KcpStream;
 use tokio_util::codec::Framed;

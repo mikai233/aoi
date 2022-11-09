@@ -182,8 +182,8 @@ fn start_networking(mut commands: Commands, runtime: Res<Runtime>) {
     let (to_server_sender, mut to_server_receiver) = mpsc::channel::<ProtoMessage>(2000);
 
     runtime.spawn(async move {
-        let addr = "172.20.198.152:4895";
-        // let addr = "127.0.0.1:4895";
+        // let addr = "172.20.198.152:4895";
+        let addr = "127.0.0.1:4895";
         let cfg = kcp_config();
         let stream = tokio_kcp::KcpStream::connect(&cfg, addr.parse().unwrap()).await.unwrap();
         // let stream = TcpStream::connect(addr).await.unwrap();

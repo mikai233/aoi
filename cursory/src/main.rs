@@ -1,6 +1,3 @@
-#![feature(pin_macro)]
-
-use actix::prelude::*;
 use log::{error, info};
 
 use protocol::mapper::kcp_config;
@@ -16,11 +13,11 @@ mod world;
 mod player_handler;
 mod world_handler;
 
-#[actix_rt::main]
+#[tokio::main]
 async fn main() -> anyhow::Result<()> {
     std::env::set_var("RUST_LOG", "INFO");
     env_logger::init();
-    let addr = "0.0.0.0:4895";
+    let addr = "127.0.0.1:4895";
     let cfg = kcp_config();
     let mut listener = tokio_kcp::KcpListener::bind(cfg, addr).await?;
     info!("server listening on: {}", addr);
