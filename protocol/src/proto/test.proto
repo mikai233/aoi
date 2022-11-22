@@ -26,10 +26,10 @@ message Color{
 }
 
 message PlayerState{
-  float current_x = 1;
-  float x_speed = 2;
-  float current_y = 3;
-  float y_speed = 4;
+  float x = 1;
+  float y = 2;
+  float rotation = 3;
+  float speed = 4;
 }
 
 message SCPlayerEnterNotify{

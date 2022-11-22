@@ -53,10 +53,9 @@ impl Client {
 
     pub fn move_player(&mut self) -> anyhow::Result<()> {
         let delta_mills = TICK_DURATION.as_secs_f32();
-        let delta_x = delta_mills as f32 * self.current_state.x_speed;
-        let delta_y = delta_mills as f32 * self.current_state.y_speed;
-        self.current_state.current_x += delta_x;
-        self.current_state.current_y += delta_y;
+        let move_delta = delta_mills as f32 * self.current_state.x;
+        self.current_state.x += move_delta;
+        self.current_state.y += move_delta;
         Ok(())
     }
 
@@ -101,9 +100,15 @@ impl Client {
         //移动
         self.move_player().unwrap();
         //改变速度
-        let (x_speed, y_speed) = random_speed();
-        self.current_state.x_speed = x_speed;
-        self.current_state.y_speed = y_speed;
+        if thread_rng().gen_ratio(1, 3) {
+            let speed = random_speed();
+            self.current_state.speed = speed;
+        }
+        //change rotation
+        if thread_rng().gen_ratio(1, 3) {
+            let rotation = random_rotation();
+            self.current_state.rotation = rotation;
+        }
     }
 
     fn handle_sc_player_move_notify(&mut self, notify: Box<SCPlayerMoveNotify>) {
@@ -126,10 +131,12 @@ pub fn get_system_time() -> u128 {
     return SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis();
 }
 
-pub fn random_speed() -> (f32, f32) {
+pub fn random_speed() -> f32 {
     let lower: f32 = -10.;
     let higher: f32 = 10.;
-    let x_speed: f32 = thread_rng().gen_range(lower..=higher);
-    let y_speed: f32 = thread_rng().gen_range(lower..=higher);
-    (x_speed, y_speed)
+    thread_rng().gen_range(lower..=higher)
+}
+
+pub fn random_rotation() -> f32 {
+    thread_rng().gen_range(0.0..360.)
 }
