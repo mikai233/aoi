@@ -1,14 +1,15 @@
 use std::collections::HashMap;
+use std::time::Duration;
 
 use anyhow::anyhow;
-use log::error;
+use log::{error, info};
 use protobuf::MessageDyn;
 
 use protocol::mapper::cast;
 use protocol::test::{PlayerMoveNotify, SCPlayerMoveNotify};
 
 use crate::message::{WorldMessage, WorldMessageWrap};
-use crate::player::{PlayerMessageSender, PlayerState, ProtoMessageSender};
+use crate::player::{PlayerMessageSender, ProtoMessageSender, State};
 use crate::world_handler::handle_player_login;
 
 pub type WorldMessageSender = tokio::sync::mpsc::UnboundedSender<WorldMessageWrap>;
@@ -17,7 +18,7 @@ pub type WorldMessageReceiver = tokio::sync::mpsc::UnboundedReceiver<WorldMessag
 pub struct World {
     pub world_id: i32,
     pub sessions: HashMap<i32, (PlayerMessageSender, ProtoMessageSender)>,
-    pub player_state: HashMap<i32, PlayerState>,
+    pub player_state: HashMap<i32, State>,
 }
 
 impl World {
@@ -77,15 +78,13 @@ async fn inner_handler(world: &mut World, wrap: WorldMessageWrap) -> anyhow::Res
             todo!()
         }
         WorldMessage::PlayerMove(move_notify) => {
+            info!("{}",move_notify);
             let move_notify = cast::<PlayerMoveNotify>(move_notify)?;
             let state = world.player_state.get_mut(&player_id).ok_or(anyhow!("player:{} state not found",player_id))?;
-            state.state = move_notify.state.unwrap().clone();
-            state.x = move_notify.location.x;
-            state.y = move_notify.location.y;
+            state.player_state = move_notify.state.clone().unwrap();
             let mut notify = SCPlayerMoveNotify::new();
             notify.state = move_notify.state.clone();
             notify.player_id = player_id;
-            notify.location = move_notify.location;
             world.broad_cast_all(Box::new(notify));
         }
     }

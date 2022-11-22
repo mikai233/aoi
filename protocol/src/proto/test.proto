@@ -19,23 +19,17 @@ message LoginResp{
   Color color = 2;
 }
 
-message Vector2{
-  double x = 1;
-  double y = 2;
-}
-
 message Color{
-  double r = 1;
-  double g = 2;
-  double b = 3;
+  float r = 1;
+  float g = 2;
+  float b = 3;
 }
 
-enum State{
-  Idle = 0;
-  MoveLeft = 1;
-  MoveRight = 2;
-  MoveUp = 3;
-  MoveDown = 4;
+message PlayerState{
+  float current_x = 1;
+  float x_speed = 2;
+  float current_y = 3;
+  float y_speed = 4;
 }
 
 message SCPlayerEnterNotify{
@@ -50,21 +44,18 @@ message SCPlayerLeaveNotify{
 message SCOtherPlayersStateNotify{
   message Bundle{
     int32 player_id = 1;
-    State state = 2;
-    Vector2 location = 3;
-    Color color = 4;
+    PlayerState state = 2;
+    Color color = 3;
   }
   repeated Bundle players = 1;
 }
 
 message PlayerMoveNotify{
   int32 player_id = 1;
-  State state = 2;
-  Vector2 location = 3;
+  PlayerState state = 2;
 }
 
 message SCPlayerMoveNotify{
   int32 player_id = 1;
-  State state = 2;
-  Vector2 location = 3;
+  PlayerState state = 2;
 }

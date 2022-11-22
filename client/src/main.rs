@@ -14,11 +14,9 @@ use crate::client::{Client, ClientMessage};
 
 mod client;
 
-pub const PLAYER_COUNT: usize = 10;
+const PLAYER_COUNT: usize = 1;
 
-pub const HORIZONTAL_BOUNDARY: f64 = 1000.;
-
-pub const VERTICAL_BOUNDARY: f64 = 1000.;
+const TICK_DURATION: Duration = Duration::from_millis(100);
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -27,6 +25,7 @@ async fn main() -> anyhow::Result<()> {
     let addr = "127.0.0.1:4895";
     let mut clients = vec![];
     for _ in 0..PLAYER_COUNT {
+        tokio::time::sleep(Duration::from_millis(200)).await;
         let c = tokio::spawn(start_client(addr));
         clients.push(c);
     }
@@ -88,7 +87,7 @@ async fn start_client(addr: &str) {
                     break;
                 }
             };
-            tokio::time::sleep(Duration::from_millis(100)).await;
+            tokio::time::sleep(TICK_DURATION).await;
         }
     });
     client.start().await;

@@ -29,9 +29,8 @@ pub async fn handle_login_req(player: &mut Player, msg: Box<dyn MessageDyn>) -> 
 
 pub async fn handle_move_notify(player: &mut Player, msg: Box<dyn MessageDyn>) -> anyhow::Result<()> {
     let move_notify = cast::<PlayerMoveNotify>(msg)?;
-    let state = &mut player.state;
-    state.x = move_notify.location.x;
-    state.y = move_notify.location.y;
+    player.state.player_state = move_notify.state.clone().unwrap();
+
     player.world_sender.send(WorldMessageWrap::new(player.player_id, PlayerMove(move_notify)))?;
     Ok(())
 }

@@ -2,7 +2,7 @@ use std::fmt::{Debug, Display};
 
 use protobuf::MessageDyn;
 
-use crate::player::{PlayerMessageSender, PlayerState, ProtoMessageSender};
+use crate::player::{PlayerMessageSender, State, ProtoMessageSender};
 
 pub struct WorldProtoMessage(pub i32, pub Box<dyn MessageDyn>);
 
@@ -23,7 +23,7 @@ impl WorldMessageWrap {
 
 #[derive(Debug)]
 pub enum WorldMessage {
-    PlayerLogin(PlayerMessageSender, ProtoMessageSender, PlayerState),
+    PlayerLogin(PlayerMessageSender, ProtoMessageSender, State),
     PlayerLogout,
     PlayerMove(Box<dyn MessageDyn>),
     Proto(Box<dyn MessageDyn>),

@@ -1,15 +1,25 @@
+use std::collections::LinkedList;
+use std::time::SystemTime;
+
 use futures::SinkExt;
 use futures::stream::SplitSink;
-use log::info;
-use protobuf::{Enum, EnumOrUnknown, MessageDyn, MessageField};
+use log::{info, warn};
+use protobuf::{MessageDyn, MessageField, MessageFull};
 use rand::{Rng, thread_rng};
 use tokio_kcp::KcpStream;
 use tokio_util::codec::Framed;
 
 use protocol::codec::ProtoCodec;
-use protocol::test::{PlayerMoveNotify, State, Vector2};
+use protocol::mapper::cast;
+use protocol::test::{PlayerMoveNotify, PlayerState, SCPlayerMoveNotify};
 
-use crate::{HORIZONTAL_BOUNDARY, VERTICAL_BOUNDARY};
+use crate::TICK_DURATION;
+
+const MOVE_SPEED: f32 = 0.5;
+
+const HORIZONTAL_BOUNDARY: f32 = 10.;
+
+const VERTICAL_BOUNDARY: f32 = 10.;
 
 type Tx = tokio::sync::mpsc::UnboundedSender<ClientMessage>;
 type Rx = tokio::sync::mpsc::UnboundedReceiver<ClientMessage>;
@@ -25,10 +35,8 @@ pub struct Client {
     pub conn: MessageSink,
     pub tx: Tx,
     pub rx: Rx,
-    pub x: f64,
-    pub y: f64,
-    pub velocity: f64,
-    pub state: State,
+    pub pending_states: LinkedList<PlayerState>,
+    pub current_state: PlayerState,
 }
 
 impl Client {
@@ -38,58 +46,25 @@ impl Client {
             conn,
             tx,
             rx,
-            x: 0.,
-            y: 0.,
-            velocity: 10.,
-            state: State::Idle,
+            pending_states: LinkedList::new(),
+            current_state: PlayerState::new(),
         }
     }
 
-    pub fn random_state() -> State {
-        let mut rng = rand::thread_rng();
-        let v = State::VALUES;
-        let which = rng.gen_range(0..State::VALUES.len());
-        let move_state = v[which];
-        move_state
+    pub fn move_player(&mut self) -> anyhow::Result<()> {
+        let delta_mills = TICK_DURATION.as_secs_f32();
+        let delta_x = delta_mills as f32 * self.current_state.x_speed;
+        let delta_y = delta_mills as f32 * self.current_state.y_speed;
+        self.current_state.current_x += delta_x;
+        self.current_state.current_y += delta_y;
+        Ok(())
     }
 
-    pub async fn notify_and_move(&mut self) -> anyhow::Result<()> {
+    pub async fn notify_server(&mut self, new_state: PlayerState) -> anyhow::Result<()> {
         let mut notify = PlayerMoveNotify::new();
         notify.player_id = self.player_id;
-        notify.state = EnumOrUnknown::new(self.state.clone());
-        let mut v = Vector2::new();
-        v.x = self.x;
-        v.y = self.y;
-        notify.location = MessageField::some(v);
+        notify.state = MessageField::some(new_state);
         self.conn.send(Box::new(notify)).await?;
-
-        match self.state {
-            State::Idle => {}
-            State::MoveLeft => {
-                self.x -= self.velocity;
-            }
-            State::MoveRight => {
-                self.x += self.velocity;
-            }
-            State::MoveUp => {
-                self.y -= self.velocity;
-            }
-            State::MoveDown => {
-                self.y += self.velocity;
-            }
-        }
-        if self.x < -HORIZONTAL_BOUNDARY {
-            self.x = -HORIZONTAL_BOUNDARY;
-        }
-        if self.x > HORIZONTAL_BOUNDARY {
-            self.x = HORIZONTAL_BOUNDARY;
-        }
-        if self.y < -VERTICAL_BOUNDARY {
-            self.y = -VERTICAL_BOUNDARY;
-        }
-        if self.y > VERTICAL_BOUNDARY {
-            self.y = VERTICAL_BOUNDARY;
-        }
         Ok(())
     }
 
@@ -104,7 +79,11 @@ impl Client {
                         ClientMessage::Proto(resp) => {
                             let desc = resp.descriptor_dyn();
                             let msg_name = desc.name();
-                            info!("client:{} receive msg:{}=>{}",self.player_id,msg_name,resp);
+                            info!("{}",resp);
+                            if msg_name == SCPlayerMoveNotify::descriptor().name() {
+                                let notify = cast::<SCPlayerMoveNotify>(resp).unwrap();
+                                self.handle_sc_player_move_notify(notify)
+                            }
                         }
                         ClientMessage::Tick => {
                             self.handle_tick().await;
@@ -114,20 +93,43 @@ impl Client {
             }
         }
     }
+
     async fn handle_tick(&mut self) {
-        //todo 插值之后再处理
-        // let current_state = self.state;
-        // let change_state = thread_rng().gen_ratio(1, 10);
-        // if change_state {
-        //     let new_state = Client::random_state();
-        //     if new_state != current_state {
-        //         self.state = new_state;
-        //         self.notify_and_move().await.unwrap();
-        //     }
-        // }
-        self.notify_and_move().await.unwrap();
-        if thread_rng().gen_ratio(1, 10) {
-            self.state = Client::random_state();
+        //通知服务端进行移动
+        self.notify_server(self.current_state.clone()).await.unwrap();
+        self.pending_states.push_back(self.current_state.clone());
+        //移动
+        self.move_player().unwrap();
+        //改变速度
+        let (x_speed, y_speed) = random_speed();
+        self.current_state.x_speed = x_speed;
+        self.current_state.y_speed = y_speed;
+    }
+
+    fn handle_sc_player_move_notify(&mut self, notify: Box<SCPlayerMoveNotify>) {
+        if notify.player_id == self.player_id {
+            //服务器权威输入
+            let authoritative_state = notify.state.unwrap();
+
+            if let Some(pending_state) = self.pending_states.pop_front() {
+                if authoritative_state != pending_state {
+                    self.current_state = authoritative_state.clone();
+                    self.pending_states.clear();
+                    warn!("状态回滚:{}=>{}",authoritative_state,self.current_state);
+                }
+            }
         }
     }
+}
+
+pub fn get_system_time() -> u128 {
+    return SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis();
+}
+
+pub fn random_speed() -> (f32, f32) {
+    let lower: f32 = -10.;
+    let higher: f32 = 10.;
+    let x_speed: f32 = thread_rng().gen_range(lower..=higher);
+    let y_speed: f32 = thread_rng().gen_range(lower..=higher);
+    (x_speed, y_speed)
 }
