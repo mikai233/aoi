@@ -21,7 +21,7 @@ async fn main() -> anyhow::Result<()> {
     let cfg = kcp_config();
     let mut listener = tokio_kcp::KcpListener::bind(cfg, addr).await?;
     info!("server listening on: {}", addr);
-    let (world_sender, mut world_receiver) = tokio::sync::mpsc::unbounded_channel::<WorldMessageWrap>();
+    let (world_sender, world_receiver) = tokio::sync::mpsc::unbounded_channel::<WorldMessageWrap>();
     start_world(world_receiver);
     loop {
         tokio::select! {
