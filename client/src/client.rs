@@ -61,7 +61,6 @@ impl Client {
 
     pub async fn notify_server(&mut self, new_state: PlayerState) -> anyhow::Result<()> {
         let mut notify = PlayerMoveNotify::new();
-        notify.player_id = self.player_id;
         notify.state = MessageField::some(new_state);
         self.conn.send(Box::new(notify)).await?;
         Ok(())

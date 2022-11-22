@@ -1,4 +1,5 @@
-use log::{info, warn};
+use anyhow::anyhow;
+use log::info;
 use protobuf::{MessageDyn, MessageField};
 
 use protocol::mapper::cast;
@@ -9,19 +10,14 @@ use protocol::test::SCPlayerMoveNotify;
 use crate::player::{PlayerMessageSender, ProtoMessageSender, State};
 use crate::world::World;
 
-async fn handle_move_notify(world: &mut World, player_id: i32, msg: Box<dyn MessageDyn>) -> anyhow::Result<()> {
-    let msg = cast::<PlayerMoveNotify>(msg)?;
-    if let Some(state) = world.player_state.get_mut(&player_id) {
-        state.player_state = msg.state.clone().unwrap();
-    } else {
-        warn!("player:{} not found in world:{}",player_id,world.world_id);
-    }
-    for player in world.sessions.values() {
-        let mut notify = SCPlayerMoveNotify::new();
-        notify.state = msg.state.clone();
-        notify.player_id = msg.player_id;
-        let _ = player.1.send(Box::new(notify));
-    }
+pub async fn handle_move_notify(world: &mut World, player_id: i32, msg: Box<dyn MessageDyn>) -> anyhow::Result<()> {
+    let move_notify = cast::<PlayerMoveNotify>(msg)?;
+    let state = world.player_state.get_mut(&player_id).ok_or(anyhow!("player:{} state not found",player_id))?;
+    state.player_state = move_notify.state.clone().unwrap();
+    let mut notify = SCPlayerMoveNotify::new();
+    notify.state = move_notify.state.clone();
+    notify.player_id = player_id;
+    world.broad_cast_all(Box::new(notify));
     Ok(())
 }
 

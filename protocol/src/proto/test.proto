@@ -51,11 +51,18 @@ message SCOtherPlayersStateNotify{
 }
 
 message PlayerMoveNotify{
-  int32 player_id = 1;
-  PlayerState state = 2;
+  PlayerState state = 1;
 }
 
 message SCPlayerMoveNotify{
   int32 player_id = 1;
   PlayerState state = 2;
+}
+
+message HeartbeatNotify{
+
+}
+
+message PlayerLeaveNotify{
+  
 }

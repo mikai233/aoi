@@ -1,15 +1,11 @@
 use std::collections::HashMap;
-use std::time::Duration;
 
-use anyhow::anyhow;
 use log::{error, info};
 use protobuf::MessageDyn;
 
-use protocol::mapper::cast;
-use protocol::test::{PlayerMoveNotify, SCPlayerMoveNotify};
-
 use crate::message::{WorldMessage, WorldMessageWrap};
 use crate::player::{PlayerMessageSender, ProtoMessageSender, State};
+use crate::world_handler::handle_move_notify;
 use crate::world_handler::handle_player_login;
 
 pub type WorldMessageSender = tokio::sync::mpsc::UnboundedSender<WorldMessageWrap>;
@@ -79,13 +75,7 @@ async fn inner_handler(world: &mut World, wrap: WorldMessageWrap) -> anyhow::Res
         }
         WorldMessage::PlayerMove(move_notify) => {
             info!("{}",move_notify);
-            let move_notify = cast::<PlayerMoveNotify>(move_notify)?;
-            let state = world.player_state.get_mut(&player_id).ok_or(anyhow!("player:{} state not found",player_id))?;
-            state.player_state = move_notify.state.clone().unwrap();
-            let mut notify = SCPlayerMoveNotify::new();
-            notify.state = move_notify.state.clone();
-            notify.player_id = player_id;
-            world.broad_cast_all(Box::new(notify));
+            handle_move_notify(world, player_id, move_notify).await?;
         }
     }
     Ok(())
