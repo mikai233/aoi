@@ -39,10 +39,11 @@ pub async fn start_server(addr: &str) -> anyhow::Result<()> {
 fn accept_connection(stream: KcpStream, addr: SocketAddr, world_sender: WorldMessageSender) {
     let (player_tx, player_rx) = tokio::sync::mpsc::unbounded_channel::<PlayerMessageWrap>();
     let (proto_tx, proto_rx) = tokio::sync::mpsc::unbounded_channel::<ProtoMessage>();
-    let player = Player::new(addr, player_tx, proto_tx, world_sender);
+    let mut player = Player::new(addr, player_tx, proto_tx, world_sender);
     let framed = Framed::new(stream, ProtoCodec::new(true));
     let (write, read) = framed.split();
+    let write_handle = Player::start_write_msg(proto_rx, write);
+    player.write_handle = Some(write_handle);
     Player::start_receive_msg(player, read, player_rx);
-    Player::start_write_msg(proto_rx, write);
     info!("accept new connection {}",addr);
 }

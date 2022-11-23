@@ -5,6 +5,9 @@ mod message;
 mod world;
 mod server;
 mod world_handler;
+mod player_handler;
+mod tick;
+mod event;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

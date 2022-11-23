@@ -2,7 +2,7 @@ use std::fmt::{Debug, Display};
 
 use protobuf::MessageDyn;
 
-use crate::player::{PlayerMessageSender, State, ProtoMessageSender};
+use crate::player::{PlayerMessageSender, ProtoMessageSender, State};
 
 pub struct WorldProtoMessage(pub i32, pub Box<dyn MessageDyn>);
 

@@ -3,14 +3,9 @@ use std::collections::HashMap;
 use log::{error, info, warn};
 use protobuf::MessageDyn;
 
-use crate::message::{PlayerMessageSender, ProtoMessageSender, WorldMessage, WorldMessageSender, WorldMessageWrap};
-use crate::player::State;
+use crate::message::{KickOutReason, PlayerLoginData, PlayerMessage, PlayerMessageWrap, WorldMessage, WorldMessageSender, WorldMessageWrap};
+use crate::player::{PlayerSender, State};
 use crate::world_handler::handle_player_login;
-
-pub struct PlayerSender {
-    pub player: PlayerMessageSender,
-    pub proto: ProtoMessageSender,
-}
 
 pub struct World {
     pub world_id: i32,
@@ -28,9 +23,10 @@ impl World {
     }
 
     pub async fn handle_world_msg(&mut self, msg: WorldMessageWrap) -> anyhow::Result<()> {
+        let player_id = msg.player_id;
         match msg.message {
-            WorldMessage::PlayerLogin(player_sender, proto_sender, state) => {
-                handle_player_login(self, player_sender, proto_sender, state).await?;
+            WorldMessage::PlayerLogin(data) => {
+                handle_player_login(self, player_id, data).await?;
             }
             WorldMessage::PlayerLogout => {}
             WorldMessage::PlayerMove(_) => {}
@@ -70,6 +66,15 @@ impl World {
             self.player_states.remove(&player_id);
             info!("player {} session removed from world {}",player_id,self.world_id);
         }
+    }
+
+    pub fn add_player(&mut self, player_id: i32, player_login_data: PlayerLoginData) {
+        let session = self.sessions.get(&player_id);
+        if let Some(sender) = session {
+            let _ = sender.player.send(PlayerMessageWrap::new(self.world_id, PlayerMessage::KickOut(KickOutReason::MultiLogin("other player login with same account".to_string()))));
+        }
+        self.sessions.insert(player_id, player_login_data.sender);
+        self.player_states.insert(player_id, player_login_data.state);
     }
 }
 

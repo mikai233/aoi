@@ -1,7 +1,7 @@
-use crate::message::{PlayerMessageSender, ProtoMessageSender};
-use crate::player::State;
+use crate::message::PlayerLoginData;
 use crate::world::World;
 
-pub async fn handle_player_login(world: &mut World, player_sender: PlayerMessageSender, proto_sender: ProtoMessageSender, state: State) -> anyhow::Result<()> {
+pub async fn handle_player_login(world: &mut World, player_id: i32, player_login_data: PlayerLoginData) -> anyhow::Result<()> {
+    world.add_player(player_id, player_login_data);
     Ok(())
 }

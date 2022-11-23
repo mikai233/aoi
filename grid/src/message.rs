@@ -2,12 +2,16 @@ use std::fmt::{Debug, Display};
 
 use protobuf::MessageDyn;
 
-use crate::player::State;
+use crate::player::{PlayerSender, State};
+use crate::tick::ScheduleEvent;
 
 pub type ProtoMessage = Box<dyn MessageDyn>;
 
 pub type PlayerMessageSender = tokio::sync::mpsc::UnboundedSender<PlayerMessageWrap>;
 pub type PlayerMessageReceiver = tokio::sync::mpsc::UnboundedReceiver<PlayerMessageWrap>;
+
+pub type EventMessageSender = tokio::sync::mpsc::UnboundedSender<EventMessage>;
+pub type EventMessageReceiver = tokio::sync::mpsc::UnboundedReceiver<EventMessage>;
 
 pub type WorldMessageSender = tokio::sync::mpsc::UnboundedSender<WorldMessageWrap>;
 pub type WorldMessageReceiver = tokio::sync::mpsc::UnboundedReceiver<WorldMessageWrap>;
@@ -17,7 +21,7 @@ pub type ProtoMessageReceiver = tokio::sync::mpsc::UnboundedReceiver<ProtoMessag
 
 pub struct WorldProtoMessage(pub i32, pub Box<dyn MessageDyn>);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WorldMessageWrap {
     pub player_id: i32,
     pub message: WorldMessage,
@@ -32,15 +36,15 @@ impl WorldMessageWrap {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum WorldMessage {
-    PlayerLogin(PlayerMessageSender, ProtoMessageSender, State),
+    PlayerLogin(PlayerLoginData),
     PlayerLogout,
     PlayerMove(Box<dyn MessageDyn>),
     Proto(Box<dyn MessageDyn>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PlayerMessageWrap {
     pub world_id: i32,
     pub message: PlayerMessage,
@@ -56,4 +60,20 @@ impl PlayerMessageWrap {
 }
 
 #[derive(Debug, Clone)]
-pub enum PlayerMessage {}
+pub struct PlayerLoginData {
+    pub sender: PlayerSender,
+    pub state: State,
+}
+
+#[derive(Debug, Clone)]
+pub enum PlayerMessage {
+    KickOut(KickOutReason),
+    Event(Box<dyn ScheduleEvent>),
+}
+
+#[derive(Debug, Clone)]
+pub enum KickOutReason {
+    MultiLogin(String)
+}
+
+pub struct EventMessage(pub Box<dyn ScheduleEvent>);

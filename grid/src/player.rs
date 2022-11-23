@@ -1,5 +1,6 @@
 use std::net::SocketAddr;
-use std::ops::Range;
+use std::ops::{Not, Range};
+use std::time::Duration;
 
 use futures::{SinkExt, StreamExt};
 use futures::stream::{SplitSink, SplitStream};
@@ -12,7 +13,16 @@ use tokio_util::codec::Framed;
 use protocol::codec::ProtoCodec;
 use protocol::test::{Color, PlayerState};
 
-use crate::message::{PlayerMessageReceiver, PlayerMessageSender, PlayerMessageWrap, ProtoMessage, ProtoMessageReceiver, ProtoMessageSender, WorldMessageSender};
+use crate::event::ReceiveTimeoutEvent;
+use crate::message::{PlayerMessage, PlayerMessageReceiver, PlayerMessageSender, PlayerMessageWrap, ProtoMessage, ProtoMessageReceiver, ProtoMessageSender, WorldMessageSender};
+use crate::player_handler::{handle_event, handle_world_kick_out};
+use crate::tick::Ticker;
+
+#[derive(Debug, Clone)]
+pub struct PlayerSender {
+    pub player: PlayerMessageSender,
+    pub proto: ProtoMessageSender,
+}
 
 pub struct Player {
     pub player_id: i32,
@@ -21,6 +31,9 @@ pub struct Player {
     pub proto_sender: ProtoMessageSender,
     pub world_sender: WorldMessageSender,
     pub state: State,
+    pub write_handle: Option<JoinHandle<()>>,
+    pub stooped: bool,
+    pub ticker: Ticker,
 }
 
 impl Player {
@@ -32,14 +45,33 @@ impl Player {
             proto_sender,
             world_sender,
             state: State::default(),
+            write_handle: None,
+            stooped: false,
+            ticker: Ticker::new(),
+        }
+    }
+
+    pub fn stop(&mut self) {
+        info!("player {} stop",self.player_id);
+        self.stooped = true;
+        if let Some(w) = &self.write_handle {
+            w.abort();
+            info!("abort player {} write handle",self.player_id);
         }
     }
 
     pub async fn handle_req(&mut self, msg: ProtoMessage) -> anyhow::Result<()> {
+        self.ticker.cancel(ReceiveTimeoutEvent.to_string());
         Ok(())
     }
 
     pub async fn handle_player_msg(&mut self, msg: PlayerMessageWrap) -> anyhow::Result<()> {
+        self.ticker.cancel(ReceiveTimeoutEvent.to_string());
+        let world_id = msg.world_id;
+        match msg.message {
+            PlayerMessage::KickOut(reason) => { handle_world_kick_out(self, world_id, reason).await?; }
+            PlayerMessage::Event(_) => {}
+        }
         Ok(())
     }
 
@@ -47,7 +79,8 @@ impl Player {
     pub fn start_receive_msg(player: Player, mut read: SplitStream<Framed<KcpStream, ProtoCodec>>, mut player_receiver: PlayerMessageReceiver) -> JoinHandle<()> {
         tokio::spawn(async move {
             let mut player = player;
-            loop {
+            while player.stooped.not() {
+                player.ticker.schedule_once(Duration::from_secs(10), ReceiveTimeoutEvent.to_string(), Box::new(ReceiveTimeoutEvent));
                 tokio::select! {
                     Some(Ok(request)) = read.next() => {
                         match player.handle_req(request).await {
@@ -59,6 +92,14 @@ impl Player {
                     }
                     Some(message) = player_receiver.recv() => {
                         match player.handle_player_msg(message).await {
+                            Ok(_) => {}
+                            Err(err) => {
+                                error!("player {} handle player msg err {}",player.player_id,err);
+                            }
+                        };
+                    }
+                    Some(event) = player.ticker.handle_event() => {
+                        match handle_event(&mut player,event).await {
                             Ok(_) => {}
                             Err(err) => {
                                 error!("player {} handle player msg err {}",player.player_id,err);
