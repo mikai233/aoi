@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use futures::{SinkExt, StreamExt};
 use futures::stream::{SplitSink, SplitStream};
-use log::{error, info};
+use log::{debug, error, info};
 use rand::{Rng, thread_rng};
 use tokio::task::JoinHandle;
 use tokio_kcp::KcpStream;
@@ -134,6 +134,7 @@ impl Player {
                     }
                 }
             }
+            debug!("write task done")
         })
     }
 }

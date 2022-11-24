@@ -11,7 +11,7 @@ mod event;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    std::env::set_var("RUST_LOG", "INFO");
+    std::env::set_var("RUST_LOG", "DEBUG");
     env_logger::init();
     let addr = "127.0.0.1:4895";
     start_server(addr).await?;
