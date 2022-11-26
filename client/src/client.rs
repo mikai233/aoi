@@ -77,7 +77,7 @@ impl Client {
                         ClientMessage::Proto(resp) => {
                             let desc = resp.descriptor_dyn();
                             let msg_name = desc.name();
-                            info!("{}",resp);
+                            info!("{} {}",msg_name,resp);
                             if msg_name == SCPlayerMoveNotify::descriptor().name() {
                                 let notify = cast::<SCPlayerMoveNotify>(resp).unwrap();
                                 self.handle_sc_player_move_notify(notify)

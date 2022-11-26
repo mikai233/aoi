@@ -3,7 +3,7 @@ use std::time::Duration;
 use futures::{SinkExt, StreamExt};
 use log::{error, info};
 use protobuf::{Enum, MessageDyn};
-use rand::{random, Rng};
+use rand::{Rng, thread_rng};
 use tokio_util::codec::Framed;
 
 use protocol::codec::ProtoCodec;
@@ -14,7 +14,7 @@ use crate::client::{Client, ClientMessage};
 
 mod client;
 
-const PLAYER_COUNT: usize = 100;
+const PLAYER_COUNT: usize = 10;
 
 const TICK_DURATION: Duration = Duration::from_millis(100);
 
@@ -48,7 +48,7 @@ async fn start_client(addr: &str) {
     let (sink, mut stream) = framed.split();
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
     let mut client = Client::new(sink, tx.clone(), rx);
-    let player_id = random();
+    let player_id = thread_rng().gen_range(0..10000);
     info!("client:{} started", player_id);
     client.player_id = player_id;
     let mut login = LoginReq::new();

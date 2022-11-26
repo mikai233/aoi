@@ -5,17 +5,18 @@ use std::time::Duration;
 use futures::{SinkExt, StreamExt};
 use futures::stream::{SplitSink, SplitStream};
 use log::{debug, error, info};
+use protobuf::Message;
 use rand::{Rng, thread_rng};
 use tokio::task::JoinHandle;
 use tokio_kcp::KcpStream;
 use tokio_util::codec::Framed;
 
 use protocol::codec::ProtoCodec;
-use protocol::test::{Color, PlayerState};
+use protocol::test::{Color, LoginReq, PlayerMoveNotify, PlayerState};
 
 use crate::event::ReceiveTimeoutEvent;
 use crate::message::{PlayerMessage, PlayerMessageReceiver, PlayerMessageSender, PlayerMessageWrap, ProtoMessage, ProtoMessageReceiver, ProtoMessageSender, WorldMessageSender};
-use crate::player_handler::{handle_event, handle_world_kick_out};
+use crate::player_handler::{handle_event, handle_login_req, handle_move_req, handle_world_kick_out};
 use crate::tick::Ticker;
 
 #[derive(Debug, Clone)]
@@ -62,6 +63,13 @@ impl Player {
 
     pub async fn handle_req(&mut self, msg: ProtoMessage) -> anyhow::Result<()> {
         self.ticker.cancel(ReceiveTimeoutEvent.to_string());
+        let desc = msg.descriptor_dyn();
+        let msg_name = desc.name();
+        if msg_name == LoginReq::NAME {
+            handle_login_req(self, msg).await?;
+        } else if msg_name == PlayerMoveNotify::NAME {
+            handle_move_req(self, msg).await?;
+        }
         Ok(())
     }
 

@@ -1,22 +1,32 @@
 use std::collections::HashMap;
 
-use protocol::test::PlayerState;
-
 use crate::player::State;
-use crate::world::{H, V};
+use crate::world::L;
 
 #[derive(Debug, Default, Clone)]
 pub struct Grid {
-    pub x: f32,
-    pub y: f32,
     pub players: HashMap<i32, State>,
 }
 
-pub fn calculate_grid_id(x: f32, y: f32) -> (usize, usize) {
-    let x_n = (x / H as f32) as usize;
-    let y_n = (y / V as f32) as usize;
+pub fn calculate_grid_id(x: f32, y: f32) -> (i32, i32) {
+    let x_n = (x / L as f32) as i32;
+    let y_n = (y / L as f32) as i32;
     return (x_n, y_n);
 }
 
 #[cfg(test)]
-mod test {}
+mod test {
+    use crate::grid::calculate_grid_id;
+
+    #[test]
+    fn test_grid() {
+        let x = 1.;
+        let y = 1.;
+        let (x_n, y_n) = calculate_grid_id(x, y);
+        println!("x:{} x_n:{}|y:{} y_n:{}", x, x_n, y, y_n);
+        let x = 20.;
+        let y = 20.;
+        let (x_n, y_n) = calculate_grid_id(x, y);
+        println!("x:{} x_n:{}|y:{} y_n:{}", x, x_n, y, y_n);
+    }
+}

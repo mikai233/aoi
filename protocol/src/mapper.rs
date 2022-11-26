@@ -11,14 +11,10 @@ use crate::cs_msg::CS_MSG;
 use crate::sc_msg::SC_MSG;
 
 lazy_static! {
-    pub static ref CS_ID_DESC_MAP: HashMap<i32, MessageDescriptor> =
-        { id_to_descriptor(CS_MSG::descriptor()).unwrap() };
-    pub static ref CS_NAME_ID_MAP: HashMap<String, i32> =
-        { name_to_id(CS_MSG::descriptor()).unwrap() };
-    pub static ref SC_ID_DESC_MAP: HashMap<i32, MessageDescriptor> =
-        { id_to_descriptor(SC_MSG::descriptor()).unwrap() };
-    pub static ref SC_NAME_ID_MAP: HashMap<String, i32> =
-        { name_to_id(SC_MSG::descriptor()).unwrap() };
+    pub static ref CS_ID_DESC_MAP: HashMap<i32, MessageDescriptor> = id_to_descriptor(CS_MSG::descriptor()).unwrap() ;
+    pub static ref CS_NAME_ID_MAP: HashMap<String, i32> = name_to_id(CS_MSG::descriptor()).unwrap() ;
+    pub static ref SC_ID_DESC_MAP: HashMap<i32, MessageDescriptor> = id_to_descriptor(SC_MSG::descriptor()).unwrap() ;
+    pub static ref SC_NAME_ID_MAP: HashMap<String, i32> = name_to_id(SC_MSG::descriptor()).unwrap() ;
 }
 
 pub fn name_to_id(descriptor: MessageDescriptor) -> anyhow::Result<HashMap<String, i32>> {
