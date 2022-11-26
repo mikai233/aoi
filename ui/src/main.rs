@@ -19,7 +19,7 @@ use tokio_util::codec::Framed;
 
 use protocol::codec::ProtoCodec;
 use protocol::mapper::kcp_config;
-use protocol::test::{LoginReq, LoginResp, PlayerMoveNotify, SCOtherPlayersStateNotify, SCPlayerEnterNotify, SCPlayerMoveNotify, State, Vector2};
+use protocol::test::{LoginReq, LoginResp, PlayerMoveNotify, SCOtherPlayersStateNotify, SCPlayerEnterNotify, SCPlayerMoveNotify};
 
 type ProtoMessage = Box<dyn MessageDyn>;
 

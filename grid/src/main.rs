@@ -8,6 +8,7 @@ mod world_handler;
 mod player_handler;
 mod tick;
 mod event;
+mod grid;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

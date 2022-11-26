@@ -3,22 +3,30 @@ use std::collections::HashMap;
 use log::{error, info, warn};
 use protobuf::MessageDyn;
 
+use crate::grid::Grid;
 use crate::message::{KickOutReason, PlayerLoginData, PlayerMessage, PlayerMessageWrap, WorldMessage, WorldMessageSender, WorldMessageWrap};
 use crate::player::{PlayerSender, State};
 use crate::world_handler::handle_player_login;
+
+pub const H: usize = 200;
+pub const V: usize = 200;
+pub const L: usize = 20;
 
 pub struct World {
     pub world_id: i32,
     pub sessions: HashMap<i32, PlayerSender>,
     pub player_states: HashMap<i32, State>,
+    pub grids: Vec<Vec<Grid>>,
 }
 
 impl World {
     pub fn new() -> Self {
+        let grids = init_grid();
         Self {
             world_id: 0,
             sessions: HashMap::new(),
             player_states: HashMap::new(),
+            grids,
         }
     }
 
@@ -74,8 +82,40 @@ impl World {
             let _ = sender.player.send(PlayerMessageWrap::new(self.world_id, PlayerMessage::KickOut(KickOutReason::MultiLogin("other player login with same account".to_string()))));
         }
         self.sessions.insert(player_id, player_login_data.sender);
-        self.player_states.insert(player_id, player_login_data.state);
+        self.player_states.insert(player_id, player_login_data.state.clone());
+        self.add_player_to_grid(player_login_data.state)
     }
+
+    pub fn search_grid_by_position(&self, x: f32, y: f32) -> Option<&Grid> {
+        let n_x = (x / H as f32) as usize;
+        let n_y = (y / H as f32) as usize;
+        if let Some(y_grids) = self.grids.get(n_x) {
+            if let Some(grid) = y_grids.get(n_y) {
+                return Some(grid);
+            }
+        }
+        return None;
+    }
+
+    pub fn add_player_to_grid(&mut self, state: State) {}
+
+    pub fn remove_player_from_grid(&mut self, player_id: i32) {}
+
+    pub fn get_player_aoi_view(&mut self) -> Vec<&Grid> {
+
+    }
+}
+
+fn init_grid() -> Vec<Vec<Grid>> {
+    let mut grids = vec![];
+    for _ in 0..H {
+        let mut g = vec![];
+        for _ in 0..V {
+            g.push(Grid::default());
+        }
+        grids.push(g);
+    }
+    grids
 }
 
 pub fn start_world() -> WorldMessageSender {

@@ -15,7 +15,6 @@ pub struct Player {
     pub proto_sender: ProtoMessageSender,
     pub state: State,
     pub world_sender: WorldMessageSender,
-    pub ticker:Ticker,
 }
 
 impl Player {
