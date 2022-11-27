@@ -15,7 +15,7 @@ use protocol::test::{PlayerMoveNotify, PlayerState, SCPlayerMoveNotify};
 
 use crate::TICK_DURATION;
 
-const MOVE_SPEED: f32 = 0.5;
+const MOVE_SPEED: f32 = 20.;
 
 const HORIZONTAL_BOUNDARY: f32 = 10.;
 
@@ -53,7 +53,7 @@ impl Client {
 
     pub fn move_player(&mut self) -> anyhow::Result<()> {
         let delta_mills = TICK_DURATION.as_secs_f32();
-        let move_delta = delta_mills as f32 * self.current_state.x;
+        let move_delta = delta_mills as f32 * self.current_state.speed;
         self.current_state.x += move_delta;
         self.current_state.y += move_delta;
         Ok(())

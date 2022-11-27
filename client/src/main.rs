@@ -14,7 +14,7 @@ use crate::client::{Client, ClientMessage};
 
 mod client;
 
-const PLAYER_COUNT: usize = 10;
+const PLAYER_COUNT: usize = 2;
 
 const TICK_DURATION: Duration = Duration::from_millis(100);
 
